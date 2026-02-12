@@ -24,7 +24,7 @@ options = PoseLandmarkerOptions(
 )
 
 # 2. Open Webcam
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 
 # Use 'with' to ensure the landmarker is properly closed
 with PoseLandmarker.create_from_options(options) as landmarker:
