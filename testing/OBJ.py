@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import math
+import datetime
 
 # Try importing huggingface_hub with a clear error message if missing
 try:
@@ -55,6 +56,9 @@ def main():
     if not cap or not cap.isOpened():
         print("Error: Could not open any webcam (indices 1 or 0).")
         return
+
+    # Set camera to 30 FPS
+    cap.set(cv2.CAP_PROP_FPS, 30)
 
     print("\n=== System Ready ===")
     print("Mode: Track ONLY Persons holding Bottles")
@@ -140,6 +144,16 @@ def main():
                     
                 count_text = f"Persons with Bottle: {len(persons_with_bottles)}"
                 cv2.putText(annotated_frame, count_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+
+                # Save frame if person with bottle is detected
+                if len(persons_with_bottles) > 0:
+                    output_dir = os.path.join(script_dir, "detections")
+                    if not os.path.exists(output_dir):
+                        os.makedirs(output_dir, exist_ok=True)
+                    
+                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                    filename = os.path.join(output_dir, f"detect_{timestamp}.jpg")
+                    cv2.imwrite(filename, frame) # Save original clean frame
 
             cv2.imshow('Smart Bottle Tracker', annotated_frame)
 
