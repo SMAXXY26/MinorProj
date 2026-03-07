@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weapon Detection — Live Feed</title>
+    <meta name="description" content="Real-time weapon detection using YOLOv8 with live camera feed and detection statistics.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <!-- ── Left Sidebar ─────────────────────────────────────────────── -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <span class="logo-icon">🔍</span>
+                <div>
+                    <h1>WeaponDetect</h1>
+                    <p class="subtitle">YOLOv8 Real-Time</p>
+                </div>
+            </div>
+            <div class="status-badge" id="statusBadge">
+                <span class="status-dot"></span>
+                <span id="statusText">Connecting…</span>
+            </div>
+        </div>
+
+        <div class="sidebar-body">
+            <!-- FPS Card -->
+            <div class="stat-card fps-card">
+                <div class="stat-label">FPS</div>
+                <div class="stat-value" id="fpsValue">0</div>
+                <div class="stat-bar">
+                    <div class="stat-bar-fill fps-bar" id="fpsBar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Current Frame Detections -->
+            <div class="stat-card frame-card">
+                <div class="stat-label">Current Frame</div>
+                <div class="stat-value" id="frameDetections">0</div>
+                <div class="stat-sublabel">objects detected</div>
+            </div>
+
+            <div class="divider"></div>
+
+            <h2 class="section-title">Detection Counts</h2>
+
+            <!-- Knife Counter -->
+            <div class="detection-card knife-card" id="knifeCard">
+                <div class="detection-icon">🔪</div>
+                <div class="detection-info">
+                    <span class="detection-name">Knife</span>
+                    <span class="detection-count" id="knifeCount">0</span>
+                </div>
+                <div class="detection-bar">
+                    <div class="detection-bar-fill knife-fill" id="knifeBar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Pistol Counter -->
+            <div class="detection-card pistol-card" id="pistolCard">
+                <div class="detection-icon">🔫</div>
+                <div class="detection-info">
+                    <span class="detection-name">Pistol</span>
+                    <span class="detection-count" id="pistolCount">0</span>
+                </div>
+                <div class="detection-bar">
+                    <div class="detection-bar-fill pistol-fill" id="pistolBar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- Rifle Counter -->
+            <div class="detection-card rifle-card" id="rifleCard">
+                <div class="detection-icon">🎯</div>
+                <div class="detection-info">
+                    <span class="detection-name">Rifle</span>
+                    <span class="detection-count" id="rifleCount">0</span>
+                </div>
+                <div class="detection-bar">
+                    <div class="detection-bar-fill rifle-fill" id="rifleBar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <!-- Total Detections -->
+            <div class="stat-card total-card">
+                <div class="stat-label">Total Detections</div>
+                <div class="stat-value total-value" id="totalCount">0</div>
+            </div>
+        </div>
+
+        <div class="sidebar-footer">
+            <button class="reset-btn" id="resetBtn" onclick="resetStats()">
+                <span>↺</span> Reset Counters
+            </button>
+            <div class="footer-info">
+                <span>Confidence: 0.50</span>
+                <span>Model: YOLOv8m</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ── Main Video Area ──────────────────────────────────────────── -->
+    <main class="video-area" id="videoArea">
+        <div class="video-container">
+            <img src="/video_feed" alt="Live Camera Feed" id="videoFeed" class="video-feed">
+            <div class="video-overlay" id="videoOverlay">
+                <div class="loading-spinner"></div>
+                <p>Connecting to camera…</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // ── SSE for live stats ──────────────────────────────────────
+        const evtSource = new EventSource('/stats_feed');
+        const statusBadge = document.getElementById('statusBadge');
+        const statusText = document.getElementById('statusText');
+        const videoOverlay = document.getElementById('videoOverlay');
+
+        evtSource.onopen = () => {
+            statusBadge.classList.add('connected');
+            statusText.textContent = 'Live';
+            videoOverlay.classList.add('hidden');
+        };
+
+        evtSource.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            // Update connection status
+            statusBadge.classList.add('connected');
+            statusText.textContent = 'Live';
+            videoOverlay.classList.add('hidden');
+
+            // FPS
+            const fps = data.fps || 0;
+            document.getElementById('fpsValue').textContent = fps;
+            document.getElementById('fpsBar').style.width = Math.min(fps / 30 * 100, 100) + '%';
+
+            // Frame detections
+            const frameDet = data.frame_detections || 0;
+            document.getElementById('frameDetections').textContent = frameDet;
+            if (frameDet > 0) {
+                document.getElementById('frameDetections').classList.add('pulse');
+                setTimeout(() => document.getElementById('frameDetections').classList.remove('pulse'), 300);
+            }
+
+            // Per-class counts
+            updateCounter('knife', data.Knife || 0);
+            updateCounter('pistol', data.Pistol || 0);
+            updateCounter('rifle', data.Rifle || 0);
+
+            // Total
+            const total = data.total || 0;
+            document.getElementById('totalCount').textContent = total;
+
+            // Update proportional bars
+            if (total > 0) {
+                document.getElementById('knifeBar').style.width = ((data.Knife || 0) / total * 100) + '%';
+                document.getElementById('pistolBar').style.width = ((data.Pistol || 0) / total * 100) + '%';
+                document.getElementById('rifleBar').style.width = ((data.Rifle || 0) / total * 100) + '%';
+            }
+        };
+
+        evtSource.onerror = () => {
+            statusBadge.classList.remove('connected');
+            statusText.textContent = 'Disconnected';
+        };
+
+        function updateCounter(name, value) {
+            const el = document.getElementById(name + 'Count');
+            const oldValue = parseInt(el.textContent) || 0;
+            el.textContent = value;
+
+            if (value > oldValue) {
+                const card = document.getElementById(name + 'Card');
+                card.classList.add('flash');
+                setTimeout(() => card.classList.remove('flash'), 400);
+            }
+        }
+
+        function resetStats() {
+            fetch('/reset_stats', { method: 'POST' })
+                .then(r => r.json())
+                .then(() => {
+                    document.getElementById('resetBtn').classList.add('clicked');
+                    setTimeout(() => document.getElementById('resetBtn').classList.remove('clicked'), 300);
+                });
+        }
+
+        // Hide overlay once video loads
+        document.getElementById('videoFeed').onload = () => {
+            videoOverlay.classList.add('hidden');
+        };
+    </script>
+</body>
+</html>
