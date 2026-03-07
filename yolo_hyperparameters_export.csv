@@ -1,0 +1,31 @@
+Category,Parameter,Value,Effect on Precision
+Model Choice,MODEL_SIZE,"yolov8m.pt",Balanced model (~25M params) with enough capacity to learn distinct features for classes without overfitting. Recommended over smaller models for precision.
+Training Schedule,EPOCHS,80,"More passes over data means the model learns richer features, reducing misclassifications."
+Training Schedule,IMAGE_SIZE,640,Standard YOLO resolution—high enough to distinguish weapon types clearly.
+Training Schedule,BATCH_SIZE,8,Smaller batches mean noisier gradients which act as regularization (safeguards against overfitting).
+Optimizer,lr0,0.005,"Lower initial learning rate prevents overshooting the loss minimum, resulting in a more precise and stable model."
+Optimizer,lrf,0.01,"Very small final learning rate (0.00005) ensures the model fine-tunes rather than jumping around at the end."
+Optimizer,momentum,0.937,Standard SGD momentum that smooths the gradient updates.
+Optimizer,weight_decay,0.0005,"L2 regularization penalizes large weights, reduces overfitting, and helps generalize to unseen weapons."
+Optimizer,warmup_epochs,5.0,"Gradually ramps learning rate to prevent wild gradient updates early on that could corrupt pretrained weights."
+Optimizer,cos_lr,True,"Smooth cosine decay of learning rate, giving the model more time to settle into a precise solution."
+Loss Weights,box,9.0,"Raised from 7.5; forces tighter bounding boxes which leads to better IoU during NMS and fewer sloppy detections."
+Loss Weights,cls,1.0,"Doubled from 0.5; forces the model to produce sharper class probability scores. Correct class more often = higher precision."
+Confidence & NMS,conf,0.35,"Minimum confidence raised; model must be more sure before firing an alert, eliminating low-confidence false positives."
+Confidence & NMS,iou,0.6,"Higher threshold; boxes must overlap ≥60% to be suppressed, removing duplicates more aggressively for cleaner detections."
+Regularization,label_smoothing,0.05,"Softens targets to 0.05/0.95; prevents overconfidence so the model is calibrated rather than blindly certain on unseen data."
+Regularization,dropout,0.0,Disabled as YOLOv8m has enough built-in regularization via weight decay.
+Augmentation,mosaic,0.8,"Reduced from 1.0; mosaic helps recall but can confuse box edges. Reducing it keeps labels cleaner for better localization precision."
+Augmentation,mixup,0.05,Kept very low so that blended images do not muddy the labels.
+Augmentation,copy_paste,0.1,Helps small-object recall (e.g. pistols at a distance) without significantly hurting precision.
+Augmentation,flipud,0.0,No vertical flips as weapons aren't usually upside-down; would just add noise.
+Augmentation,fliplr,0.5,50% horizontal flip is safe as weapons look valid mirrored.
+Augmentation,hsv (h/s/v),"0.01, 0.5, 0.3",Slight color jitter makes the model robust to lighting changes without distorting shape.
+Training Stability,patience,20,Stops training if validation precision stops improving to prevent overfitting.
+Training Stability,amp,True,Mixed precision (FP16) speeds up training and lowers VRAM use for stable training.
+Training Stability,workers,4,Controls CPU threads; lowered to prevent system crashes during data loading.
+Summary / Levers,Increase conf,0.45 - 0.5,"Increases precision, decreases recall."
+Summary / Levers,Increase iou,0.65,Results in cleaner Non-Maximum Suppression (fewer duplicates).
+Summary / Levers,Increase EPOCHS,100,Improves generalization if it hasn't plateaued yet.
+Summary / Levers,Increase box loss,10.0,Forces tighter box regression.
+Summary / Levers,Increase cls loss,1.5,Produces sharper class scores.
