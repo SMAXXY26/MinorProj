@@ -68,3 +68,19 @@ Understanding the metrics printed during training and evaluation:
 ### Validation Predictions
 ![Validation Predictions](./assets/val_batch0_pred.jpg)
 ![Validation Predictions](./assets/val_batch1_pred.jpg)
+
+---
+
+## 📝 Dataset Citation
+
+This project uses the following datasets from [Roboflow Universe](https://universe.roboflow.com):
+
+1. **Weapon Detection v1** — 5-class dataset (Grenade, Knife, Missile, Pistol, Rifle)
+   - **Workspace:** test-7awfy
+   - **License:** CC BY 4.0
+   - **URL:** [universe.roboflow.com/test-7awfy/weapon-detection-f1lih/dataset/1](https://universe.roboflow.com/test-7awfy/weapon-detection-f1lih/dataset/1)
+
+2. **Weapon Detection v2** — 1-class dataset (Weapon)
+   - **Workspace:** atmai
+   - **License:** Public Domain
+   - **URL:** [universe.roboflow.com/atmai/weapon-detection-j5ehm/dataset/2](https://universe.roboflow.com/atmai/weapon-detection-j5ehm/dataset/2)

@@ -1,1 +1,16 @@
 Miniforge3-Linux-x86_64.sh
+weapon_detection
+yolo11n.pt
+yolo26n.pt
+yolov8m.pt
+yolov8n.pt
+Proj final/runs/detect/runs/gun_model
+Proj final/runs/detect/runs/detect
+Proj final/test.ipynb
+runs
+mdpdf.log
+Weapon_Detection_WebApp_Implementation_Plan.pdf
+testv1.py
+RPI
+logs.txt
+pipeline.jpeg
