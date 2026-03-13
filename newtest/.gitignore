@@ -1,0 +1,7 @@
+# Ignore data and weights
+data/
+runs/
+__pycache__/
+*.pyc
+*.pt
+*weights*
