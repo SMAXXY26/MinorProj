@@ -19,12 +19,14 @@ After training, best weights saved to: runs/<PROJECT_NAME>/weights/best.pt
 from ultralytics import YOLO
 from pathlib import Path
 import torch
+import logging
 
 # ── Config ────────────────────────────────────────────────────────────────────
-DATASET_YAML = "weapon_detection/weapon-detection.v2i.yolov8/data.yaml"
+FOLD         = 1                     # Which fold to train (1 to 5)
+DATASET_YAML = "newtest/data/dataset_split/data.yaml"
 MODEL_SIZE   = "yolov8n.pt"          # small model — strong accuracy on ~20k images
 PROJECT_NAME = "gun_model_v3"
-EPOCHS       = 50                   # large dataset benefits from more epochs
+EPOCHS       = 80                   # large dataset benefits from more epochs
 IMAGE_SIZE   = 416                   # standard YOLO input size
 BATCH_SIZE   = 16                    # RTX 4070 8GB handles batch 16 with FP16
 DEVICE       = "0" if torch.cuda.is_available() else "cpu"
@@ -110,13 +112,27 @@ def train():
     print(f"  Precision: {metrics.box.mp:.3f}")
     print(f"  Recall:    {metrics.box.mr:.3f}")
 
+    best_weights = Path("runs") / PROJECT_NAME / "weights/best.pt"
+
+    # Setup logging to track training metrics
+    log_file = Path("runs") / PROJECT_NAME / f"metrics_fold_{FOLD}.log"
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    logging.basicConfig(filename=str(log_file), level=logging.INFO, format='%(asctime)s - %(message)s', force=True)
+    
+    logging.info(f"--- Training Completed for Fold {FOLD} ---")
+    logging.info(f"mAP50: {metrics.box.map50:.3f}")
+    logging.info(f"mAP50-95: {metrics.box.map:.3f}")
+    logging.info(f"Precision: {metrics.box.mp:.3f}")
+    logging.info(f"Recall: {metrics.box.mr:.3f}")
+    logging.info(f"Best weights stored at: {best_weights.absolute()}")
+
     if metrics.box.mp < 0.80:
         print("⚠️  Precision is below 0.80. Consider: more epochs, higher conf, or more data.")
     else:
         print("✅ Precision target (>0.80) achieved!")
 
-    best_weights = Path("runs") / PROJECT_NAME / "weights/best.pt"
     print(f"\n✅ Training complete! Best model: {best_weights}")
+    print(f"📄 Metrics logged to: {log_file.absolute()}")
     return str(best_weights)
 
 
