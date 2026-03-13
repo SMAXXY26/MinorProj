@@ -1,20 +1,17 @@
 # Weapon Detection Project
 
-This project trains a YOLOv8 medium (`yolov8m`) model to detect specific weapons, prioritizing high precision. 
+This project trains a YOLOv8 small (`yolov8s`) model to detect weapons, prioritizing high precision. 
 
 ## 📊 Dataset Details
 
-The dataset contains a total of **9,633 images** annotated in YOLO format.
+The dataset targets a single unified class for weapons.
 
 **Data Splits:**
-- **Train**: 7,182 images
-- **Validation**: 1,815 images
-- **Test**: 636 images
+- **Train**: ~19,970 images
+- **Validation**: ~1,023 images
 
-**Target Classes (Filtered for Training):**
-- **Knife** (Class Index 1)
-- **Pistol** (Class Index 3)
-- **Rifle** (Class Index 4)
+**Target Classes:**
+- **Weapon** (Class Index 0)
 
 ---
 
@@ -23,21 +20,20 @@ The dataset contains a total of **9,633 images** annotated in YOLO format.
 The configuration is tuned to push the model's **Precision above 0.80** by tightening bounding box rules and minimizing false positives.
 
 **Core Settings:**
-- **Model:** `yolov8m.pt` (Medium size for optimal precision vs. speed)
-- **Epochs:** 80
-- **Image Size:** 640
-- **Batch Size:** 8 (Safe for 8GB VRAM)
+- **Model:** `yolov8s.pt` (Small size - strong accuracy on ~20k images)
+- **Epochs:** 50
+- **Image Size:** 416
+- **Batch Size:** 16 (Safe for 8GB VRAM)
 
 **Loss & Optimization (Precision Focused):**
-- **Initial Learning Rate (`lr0`):** `0.005` (Lower rate prioritizes steady, stable convergence)
-- **Box Loss Gain (`box`):** `9.0` (Heavily penalizes loose bounding boxes to tighten localization)
-- **Class Loss Gain (`cls`):** `1.0` (Raised from default to sharpen class confidence)
-- **Label Smoothing:** `0.05` (Slightly regularizes confidence to prevent overfitting)
+- **Initial Learning Rate (`lr0`):** `0.01`
+- **Box Loss Gain (`box`):** `7.5`
+- **Class Loss Gain (`cls`):** `0.5`
+- **Label Smoothing:** `0.05`
 
 **NMS & Regularization:**
-- **Confidence Threshold (`conf`):** `0.35` (Filters out weak predictions immediately)
-- **IoU Threshold (`iou`):** `0.6` (Ensures clustered/overlapping boxes are cleanly suppressed)
-- **Mosaic Augmentation:** `0.80` (Kept slightly conservative to maintain clean bounding box signals)
+- **Confidence Threshold (`conf`):** `0.30`
+- **IoU Threshold (`iou`):** `0.65`
 
 ---
 
@@ -45,17 +41,30 @@ The configuration is tuned to push the model's **Precision above 0.80** by tight
 
 Understanding the metrics printed during training and evaluation:
 
-**Training Losses(Lower is better)**
+**Training Losses (Lower is better)**
 *   **`box_loss`**: How accurate the bounding boxes are drawn around the objects.
-*   **`cls_loss`**: How accurate the model is at guessing the correct object strictly (Knife vs. Pistol).
+*   **`cls_loss`**: How accurate the model is at guessing the correct object strictly.
 *   **`dfl_loss`**: How precise the model is with the fine pixel edges/boundaries of the box.
-
-**Training Status:**
-*   **`GPU_mem`**: The amount of graphic memory (VRAM) currently used by the batch.
-*   **`Instances`**: Total count of objects (weapons) processed within the current batch.
 
 **Validation Metrics (Higher is better)**
 *   **`Precision`**: When the model yells "Gun!", how often is it actually a gun? (Minimizes false alarms).
 *   **`Recall`**: Out of all the real guns in the picture, how many did the model find? (Minimizes missed detections).
 *   **`mAP50`**: Mean Average Precision at 50% overlap. Assesses general detection success.
 *   **`mAP50-95`**: The strictest and most important metric. Averages precision across 50% to 95% bounding box overlaps. Ensures the model not only finds the object but draws a perfectly tight box around it.
+
+---
+
+## 🚀 Results
+
+### Final Validation Metrics (Epoch 50)
+- **Precision**: 0.850
+- **Recall**: 0.744
+- **mAP50**: 0.833
+- **mAP50-95**: 0.622
+
+### Training Curves
+![Training Results](./assets/results.png)
+
+### Validation Predictions
+![Validation Predictions](./assets/val_batch0_pred.jpg)
+![Validation Predictions](./assets/val_batch1_pred.jpg)
