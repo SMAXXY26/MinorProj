@@ -1,0 +1,77 @@
+# =============================================================================
+# WeaponDetection — Jetson Orin Nano (JetPack 6.x / CUDA 12.6)
+# ARM64 · Python 3.10 · L4T r36.x
+#
+# IMPORTANT: This image must be built ON the Jetson device (or an ARM64 host
+# with `docker buildx` and QEMU registered).  Do NOT build on x86.
+#
+# Do NOT pip-install tensorrt or pycuda — both are pre-installed by JetPack 6.x
+# on the host and are bind-mounted into the container automatically by the
+# NVIDIA Container Runtime when --runtime=nvidia is passed.
+#
+# Build (on Jetson):
+#   docker build -f Dockerfile.jetson -t weapon-detection:jetson .
+#
+# Run (on Jetson, camera on /dev/video0):
+#   docker run --rm --runtime=nvidia \
+#     -v $(pwd)/logs:/workspace/logs \
+#     -v $(pwd)/config:/workspace/config \
+#     --device /dev/video0 \
+#     weapon-detection:jetson --source 0
+#
+# Run with TensorRT engines:
+#   docker run --rm --runtime=nvidia \
+#     -v $(pwd)/logs:/workspace/logs \
+#     -v $(pwd)/config:/workspace/config \
+#     weapon-detection:jetson --source 0 --trt
+#
+# Set MAXN power mode on the host before running (not inside the container):
+#   sudo nvpmodel -m 0 && sudo jetson_clocks
+# =============================================================================
+FROM nvcr.io/nvidia/l4t-base:r36.2.0
+
+# ── Environment ──────────────────────────────────────────────────────────────
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONHASHSEED=42
+
+# ── System packages ───────────────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        python3-dev \
+        libgl1-mesa-glx \
+        libglib2.0-0 \
+        libsm6 \
+        libxrender1 \
+        libxext6 \
+        libgomp1 \
+        ffmpeg \
+        v4l-utils \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m pip install --upgrade pip
+
+# ── PyTorch for Jetson (JetPack 6.x / CUDA 12.6) ────────────────────────────
+# Installs ARM64 CUDA wheels from the Jetson-AI-Lab index.
+# numpy constraint keeps below 2.0 to avoid L4T binary compat issues.
+RUN pip install --no-cache-dir \
+        "numpy>=1.26.0,<2.0.0" \
+    && pip install --no-cache-dir \
+        torch torchvision \
+        --extra-index-url https://pypi.jetson-ai-lab.io/jp6/cu126
+
+# ── Project dependencies ──────────────────────────────────────────────────────
+COPY requirements_jetson.txt /tmp/requirements_jetson.txt
+RUN pip install --no-cache-dir -r /tmp/requirements_jetson.txt
+
+# ── Project code ──────────────────────────────────────────────────────────────
+WORKDIR /workspace
+COPY . /workspace/
+
+RUN mkdir -p logs/alerts
+
+ENTRYPOINT ["python3", "inference.py"]
+CMD ["--source", "0", "--config", "config/hyperparams.yaml"]

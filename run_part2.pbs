@@ -1,0 +1,108 @@
+#!/bin/bash
+# run_part2.pbs — PBS submission script for Part 2 (classifier training)
+#
+# Submit from the Weapon_detection directory on the HPC:
+#   cd ~/Weapon_detection
+#   qsub run_part2.pbs
+#
+# One-time setup on LOGIN NODE before first submission:
+#   source /apps/anaconda3/bin/activate deeplearning
+#   pip install --user -r requirements_hpc.txt
+
+#PBS -N weapon_classifier
+#PBS -l select=1:ncpus=4:ngpus=1:mem=24gb
+#PBS -l walltime=12:00:00
+#PBS -l place=shared
+#PBS -q gpu
+#PBS -m abe
+#PBS -o logs/pbs_part2.out
+#PBS -e logs/pbs_part2.err
+
+cd $PBS_O_WORKDIR
+mkdir -p logs logs/classifier .cache/torch/hub/checkpoints
+
+# Point torch hub cache to project dir — avoids login/compute node cache mismatch
+export TORCH_HOME=$PBS_O_WORKDIR/.cache/torch
+
+# ═════════════════════════════════════════════════════════════════════
+#  Activate shared conda env
+# ═════════════════════════════════════════════════════════════════════
+source /apps/anaconda3/bin/activate deeplearning
+
+# ═════════════════════════════════════════════════════════════════════
+#  Job banner + GPU info
+# ═════════════════════════════════════════════════════════════════════
+echo "════════════════════════════════════════════════════"
+echo "  PBS Job ID   : $PBS_JOBID"
+echo "  Node         : $(hostname)"
+echo "  Working dir  : $PBS_O_WORKDIR"
+echo "  CUDA visible : $CUDA_VISIBLE_DEVICES"
+echo "  Started      : $(date)"
+echo "════════════════════════════════════════════════════"
+nvidia-smi
+
+# ═════════════════════════════════════════════════════════════════════
+#  Pre-flight: Python + CUDA + torchvision
+# ═════════════════════════════════════════════════════════════════════
+python -c "
+import torch, torchvision
+print('torch      ', torch.__version__)
+print('torchvision', torchvision.__version__)
+print('cuda       ', torch.cuda.is_available())
+print('gpu        ', torch.cuda.get_device_name(0))
+"
+
+# ═════════════════════════════════════════════════════════════════════
+#  Verify required inputs
+# ═════════════════════════════════════════════════════════════════════
+for f in part2.py \
+         config/hyperparams.yaml \
+         src/model.py src/dataset.py src/losses.py src/augmentations.py \
+         data/classifier_crops/knife \
+         data/classifier_crops/pistol \
+         data/classifier_crops/rifle; do
+    if [ ! -e "$f" ]; then
+        echo "ERROR: missing required input: $f"
+        exit 1
+    fi
+done
+echo "  ✓ All required inputs present"
+
+# Count crops
+echo "  Knife  crops : $(ls data/classifier_crops/knife  | wc -l)"
+echo "  Pistol crops : $(ls data/classifier_crops/pistol | wc -l)"
+echo "  Rifle  crops : $(ls data/classifier_crops/rifle  | wc -l)"
+
+# ═════════════════════════════════════════════════════════════════════
+#  Backbone info from config
+# ═════════════════════════════════════════════════════════════════════
+BACKBONE=$(python -c "
+import yaml
+cfg = yaml.safe_load(open('config/hyperparams.yaml'))
+print(cfg['classifier'].get('backbone', 'efficientnet_b5'))
+")
+echo "  Backbone     : $BACKBONE"
+
+# ═════════════════════════════════════════════════════════════════════
+#  Run Part 2 — skip crop generation (crops already transferred)
+# ═════════════════════════════════════════════════════════════════════
+echo ""
+echo "── Launching part2.py --skip-crops ───────────────────────"
+ulimit -n 65536 2>/dev/null || true
+export CUDA_VISIBLE_DEVICES=0
+
+python part2.py \
+    --config config/hyperparams.yaml \
+    --skip-crops
+EXIT_CODE=$?
+
+echo ""
+echo "════════════════════════════════════════════════��═══"
+echo "  Finished   : $(date)"
+echo "  Exit code  : $EXIT_CODE"
+if [ -f logs/classifier/best.pt ]; then
+    echo "  Output     : logs/classifier/best.pt"
+fi
+echo "════════════════════════════════════════════════════"
+
+exit $EXIT_CODE

@@ -1,0 +1,8 @@
+names:
+- knife
+- pistol
+- rifle
+nc: 3
+path: /home/vinesh/ML/check1/weapon_detection/data
+train: images/train
+val: images/drone_val

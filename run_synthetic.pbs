@@ -1,0 +1,166 @@
+#!/bin/bash
+# run_synthetic.pbs — Student distillation with original + synthetic aerial data
+#
+# Submit from the Weapon_detection directory on the HPC:
+#   cd ~/Weapon_detection
+#   qsub run_synthetic.pbs
+#
+# What this job does differently from run_step9.pbs:
+#   - Patches data/dataset.yaml at job start to include data/synthetic/images/
+#     as a second training path alongside data/images/train/
+#   - Uses all 3 teacher checkpoints (fp_correction/best.pt,
+#     fp_correction/detector_ft_best.pt, detector/best.pt)
+#   - Restores original data/dataset.yaml after training completes
+#
+# Prerequisites:
+#   ./transfer_to_hpc.sh --synthetic     # transfer synthetic images + this script
+#
+# One-time setup on LOGIN NODE before first submission:
+#   source /apps/anaconda3/bin/activate deeplearning
+#   pip install --user -r requirements_hpc.txt
+
+#PBS -N weapon_synthetic
+#PBS -l select=1:ncpus=8:ngpus=1:mem=48gb
+#PBS -l walltime=24:00:00
+#PBS -l place=shared
+#PBS -q gpu
+#PBS -m abe
+#PBS -o logs/pbs_synthetic.out
+#PBS -e logs/pbs_synthetic.err
+
+# ═════════════════════════════════════════════════════════════════════
+#  Change to submission directory
+# ═════════════════════════════════════════════════════════════════════
+cd $PBS_O_WORKDIR
+mkdir -p logs
+
+# ═════════════════════════════════════════════════════════════════════
+#  Activate shared conda env
+# ═════════════════════════════════════════════════════════════════════
+source /apps/anaconda3/bin/activate deeplearning
+
+# ═════════════════════════════════════════════════════════════════════
+#  Job banner + GPU info
+# ═════════════════════════════════════════════════════════════════════
+echo "════════════════════════════════════════════════════"
+echo "  PBS Job ID   : $PBS_JOBID"
+echo "  Node         : $(hostname)"
+echo "  Working dir  : $PBS_O_WORKDIR"
+echo "  CUDA visible : $CUDA_VISIBLE_DEVICES"
+echo "  Started      : $(date)"
+echo "  Job type     : Synthetic + Original data distillation"
+echo "════════════════════════════════════════════════════"
+nvidia-smi
+
+# ═════════════════════════════════════════════════════════════════════
+#  Pre-flight: Python + CUDA + Ultralytics
+# ═════════════════════════════════════════════════════════════════════
+python -c "import torch; print('torch', torch.__version__); print('cuda_available', torch.cuda.is_available()); print('gpu', torch.cuda.get_device_name(0))"
+
+if ! python -c "import ultralytics; print('ultralytics', ultralytics.__version__)" 2>/dev/null; then
+    echo ""
+    echo "ERROR: ultralytics not installed in the 'deeplearning' env."
+    echo "Run ONCE on a LOGIN NODE:"
+    echo "    source /apps/anaconda3/bin/activate deeplearning"
+    echo "    pip install --user -r $PBS_O_WORKDIR/requirements_hpc.txt"
+    echo "Then re-submit:  qsub run_synthetic.pbs"
+    exit 1
+fi
+
+# ═════════════════════════════════════════════════════════════════════
+#  Verify required inputs
+# ═════════════════════════════════════════════════════════════════════
+MISSING=0
+for f in train_all.py yolo11n.pt \
+         config/hyperparams.yaml \
+         src/functions/distill.py \
+         runs/detect/logs/fp_correction/weights/best.pt \
+         data/images/train data/images/val \
+         data/labels/train data/labels/val \
+         data/synthetic/images data/synthetic/labels ; do
+    if [ ! -e "$f" ]; then
+        echo "ERROR: missing required input: $f"
+        MISSING=$((MISSING + 1))
+    fi
+done
+if [ "$MISSING" -gt 0 ]; then
+    echo "  $MISSING required input(s) missing — check transfer_to_hpc.sh --synthetic"
+    exit 1
+fi
+
+SYN_COUNT=$(ls data/synthetic/images/*.jpg 2>/dev/null | wc -l)
+echo "  ✓ Synthetic images : $SYN_COUNT"
+if [ "$SYN_COUNT" -lt 4000 ]; then
+    echo "ERROR: expected >= 4000 synthetic images, found $SYN_COUNT"
+    echo "Re-run: ./transfer_to_hpc.sh --synthetic"
+    exit 1
+fi
+echo "  ✓ All required inputs present"
+
+# ═════════════════════════════════════════════════════════════════════
+#  Patch data/dataset.yaml to include synthetic/images as second
+#  training path. distill.py reads cfg["dataset"]["root"]/dataset.yaml
+#  so we override it here at job start. Backed up and restored after.
+# ═════════════════════════════════════════════════════════════════════
+echo ""
+echo "── Patching data/dataset.yaml with synthetic paths ────────"
+cp data/dataset.yaml data/dataset_presynthetic.yaml.bak
+
+python - <<'PYEOF'
+import yaml, pathlib
+root = pathlib.Path("data").resolve()
+dataset = {
+    "path":  str(root),
+    "train": ["images/train", "synthetic/images"],
+    "val":   "images/val",
+    "nc":    3,
+    "names": ["knife", "pistol", "rifle"],
+}
+out = root / "dataset.yaml"
+with open(out, "w") as f:
+    yaml.dump(dataset, f, default_flow_style=False)
+print(f"  Written {out}")
+print(f"  train: images/train + synthetic/images")
+PYEOF
+
+echo "  ✓ dataset.yaml patched"
+
+# Verify it looks right
+echo "  Contents:"
+cat data/dataset.yaml | sed 's/^/    /'
+
+# ═════════════════════════════════════════════════════════════════════
+#  Run step 9 — multi-teacher KD with synthetic dataset
+# ═════════════════════════════════════════════════════════════════════
+echo ""
+echo "── Launching train_all.py --only 9 ───────────────────────"
+echo "   Dataset  : original (~49k) + synthetic (${SYN_COUNT} images)"
+echo "   Teachers : fp_correction/best.pt + detector_ft_best.pt + detector/best.pt"
+echo ""
+
+# Raise open-file-descriptor limit — high batch_size + multiple dataloader
+# workers exhaust the default fd limit via shared-memory tensor passing.
+ulimit -n 65536 2>/dev/null || true
+
+python -u train_all.py --only 9
+EXIT_CODE=$?
+
+# ═════════════════════════════════════════════════════════════════════
+#  Restore original dataset.yaml
+# ═════════════════════════════════════════════════════════════════════
+if [ -f data/dataset_presynthetic.yaml.bak ]; then
+    mv data/dataset_presynthetic.yaml.bak data/dataset.yaml
+    echo "  ✓ Restored original data/dataset.yaml"
+fi
+
+echo ""
+echo "════════════════════════════════════════════════════"
+echo "  Finished   : $(date)"
+echo "  Exit code  : $EXIT_CODE"
+echo "════════════════════════════════════════════════════"
+echo ""
+echo "  Pull results back to local machine:"
+echo "    scp btech10170.23@172.16.220.100:~/Weapon_detection/logs/student/best.pt logs/student/best_synthetic.pt"
+echo "    scp btech10170.23@172.16.220.100:~/Weapon_detection/logs/pbs_synthetic.out ."
+
+exit $EXIT_CODE

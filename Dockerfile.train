@@ -1,0 +1,93 @@
+# =============================================================================
+# WeaponDetection — Training Image
+# CUDA 12.4.1 · cuDNN 9 · Python 3.10 · Ubuntu 22.04
+#
+# Builds a fully-reproducible environment for the 4-step training pipeline
+# (part1→part4) and the student distillation step (train_all.py --only 9).
+#
+# Build:
+#   docker build -f Dockerfile.train -t weapon-detection:train .
+#
+# Run full pipeline:
+#   docker compose up train
+#
+# Run individual step:
+#   docker compose run --rm train --skip-step1 --skip-step2
+# =============================================================================
+ARG CUDA_VERSION=12.4.1
+ARG CUDNN_VERSION=9
+
+FROM nvidia/cuda:${CUDA_VERSION}-cudnn${CUDNN_VERSION}-devel-ubuntu22.04
+
+# ── Environment ──────────────────────────────────────────────────────────────
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+# Reproducibility: fixed hash seed + deterministic cuBLAS workspace
+ENV PYTHONHASHSEED=42
+ENV CUBLAS_WORKSPACE_CONFIG=:4096:8
+
+# ── System packages ───────────────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3.10 \
+        python3.10-dev \
+        python3.10-venv \
+        python3-pip \
+        git \
+        wget \
+        curl \
+        unzip \
+        libgl1-mesa-glx \
+        libglib2.0-0 \
+        libsm6 \
+        libxrender1 \
+        libxext6 \
+        libgomp1 \
+        libatlas-base-dev \
+        ffmpeg \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1 \
+ && update-alternatives --install /usr/bin/python  python  /usr/bin/python3.10 1 \
+ && python -m pip install --upgrade pip setuptools wheel
+
+# ── PyTorch (CUDA 12.4) ───────────────────────────────────────────────────────
+# Separate layer so rebuilds after requirements changes don't re-download ~4 GB.
+RUN pip install --no-cache-dir \
+        torch==2.6.0+cu124 \
+        torchvision==0.21.0+cu124 \
+        torchaudio==2.6.0+cu124 \
+        --index-url https://download.pytorch.org/whl/cu124
+
+# ── TensorRT (for export_trt.py / ONNX → INT8 engine) ────────────────────────
+RUN pip install --no-cache-dir \
+        tensorrt==10.15.1.29 \
+        --extra-index-url https://pypi.nvidia.com
+
+# ── Project dependencies ──────────────────────────────────────────────────────
+COPY docker/requirements_train.txt /tmp/requirements_train.txt
+RUN pip install --no-cache-dir -r /tmp/requirements_train.txt
+
+# ── Project code ──────────────────────────────────────────────────────────────
+WORKDIR /workspace
+COPY . /workspace/
+
+# ── Runtime directories (mounted as volumes in production; pre-created here
+#    so the container works without a compose volume mount during quick tests) ─
+RUN mkdir -p \
+        logs/detector \
+        logs/classifier \
+        logs/temporal \
+        logs/fp_correction \
+        logs/student \
+        logs/alerts \
+        data/images/train \
+        data/images/val \
+        data/labels/train \
+        data/labels/val \
+        data/classifier_crops \
+        data/negatives/images \
+        data/sequences
+
+ENTRYPOINT ["bash", "run_pipeline.sh"]

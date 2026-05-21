@@ -1,0 +1,100 @@
+# ── Model weights & training outputs ─────────────────────────────────────────
+logs/
+runs/
+*.pt
+*.pth
+*.onnx
+*.engine
+*.trt
+*.hef
+
+# ── Dataset images & generated crops (too large for git) ──────────────────────
+data/images/
+data/labels/train/
+data/labels/val/
+data/labels/test/
+data/labels/drone_val/
+data/labels/*.cache
+data/classifier_crops/
+data/negatives/
+data/sequences/
+data/raw/
+data/synthetic/
+data/synthetic_merged/
+data/testing_video/
+
+# ── Ultralytics cache ─────────────────────────────────────────────────────────
+*.cache
+
+# ── Images (no images committed) ─────────────────────────────────────────────
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.tif
+*.webp
+*.svg
+
+# ── Runtime logs ─────────────────────────────────────────────────────────────
+*.log
+*.jsonl
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Jupyter checkpoints ───────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── Environments ─────────────────────────────────────────────────────────────
+.env
+.venv
+venv/
+env/
+
+# ── Claude Code workspace ─────────────────────────────────────────────────────
+.claude/
+
+# ── SSH keys — NEVER commit private keys ─────────────────────────────────────
+key1
+key1.pub
+*.pem
+*.key
+id_rsa
+id_ed25519
+
+# ── Hailo SDK runtime logs ────────────────────────────────────────────────────
+hailo_sdk.*.log
+
+# ── Training run logs ─────────────────────────────────────────────────────────
+part4_run.log
+train_run.log
+*.pid
+
+
+# ── LaTeX build artifacts ─────────────────────────────────────────────────────
+thesis.aux
+thesis.lof
+thesis.log
+thesis.lot
+thesis.out
+thesis.toc
+thesis.pdf
+*.synctex.gz
+
+# ── OS / editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/

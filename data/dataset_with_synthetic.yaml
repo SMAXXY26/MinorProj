@@ -1,0 +1,8 @@
+names:
+- knife
+- pistol
+- rifle
+nc: 3
+path: /home/vinesh/ML/check1/weapon_detection/data
+train: /home/vinesh/ML/check1/weapon_detection/data/synthetic_merged/images
+val: images/val

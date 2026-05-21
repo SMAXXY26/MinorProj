@@ -1,0 +1,78 @@
+# =============================================================================
+# WeaponDetection — Docker Compose
+#
+# Prerequisites: NVIDIA Container Toolkit installed on the host.
+#   https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+#
+# Common workflows:
+#
+#   Full training pipeline (steps 1-4):
+#     docker compose up train
+#
+#   Skip already-completed steps:
+#     docker compose run --rm train --skip-step1 --skip-step2
+#
+#   Pipeline with temporal smoother:
+#     docker compose run --rm train --temporal
+#
+#   TensorRT export:
+#     docker compose run --rm train --export-trt
+#
+#   Inference from webcam:
+#     docker compose run --rm infer --source 0
+#
+#   Inference from video file:
+#     docker compose run --rm infer --source /workspace/data/test.mp4
+#
+#   Interactive shell in training container:
+#     docker compose run --rm --entrypoint bash train
+# =============================================================================
+
+services:
+
+  # ── Training (steps 1-4 + distillation) ────────────────────────────────────
+  train:
+    build:
+      context: .
+      dockerfile: Dockerfile.train
+    image: weapon-detection:train
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      PYTHONHASHSEED: "42"
+      CUBLAS_WORKSPACE_CONFIG: ":4096:8"
+    volumes:
+      # Mount data, logs, weights, and config so outputs persist on the host
+      # and can be resumed without rebuilding the image.
+      - ./data:/workspace/data
+      - ./logs:/workspace/logs
+      - ./weights:/workspace/weights
+      - ./runs:/workspace/runs
+      - ./outputs:/workspace/outputs
+      - ./config:/workspace/config
+    stdin_open: true
+    tty: true
+    # Default: run full pipeline. Override with `docker compose run train --skip-step1`.
+    command: []
+
+  # ── Inference ───────────────────────────────────────────────────────────────
+  infer:
+    build:
+      context: .
+      dockerfile: Dockerfile.infer
+    image: weapon-detection:infer
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility,video
+      PYTHONHASHSEED: "42"
+    volumes:
+      - ./logs:/workspace/logs
+      - ./weights:/workspace/weights
+      - ./config:/workspace/config
+    # Pass webcam through from host
+    devices:
+      - /dev/video0:/dev/video0
+    network_mode: host
+    command: ["--source", "0", "--config", "config/hyperparams.yaml"]

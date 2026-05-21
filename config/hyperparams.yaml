@@ -1,0 +1,224 @@
+alert:
+  confidence_threshold: 0.7
+  console:
+    enabled: true
+  cooldown_frames: 90
+  drone_id: DRONE_01
+  enabled: true
+  file_log:
+    enabled: true
+    log_dir: logs/alerts
+  webhook:
+    enabled: false
+    timeout_sec: 2
+    url: http://localhost:8080/alerts
+augmentation:
+  aerial:
+    degrees: 45.0
+    flipud: 0.5
+    perspective: 0.001
+    shear: 5.0
+  apply_prob: 0.9
+  color_jitter:
+    brightness: 0.2
+    contrast: 0.2
+    enabled: true
+    hue: 0.01
+    prob: 0.2
+    saturation: 0.15
+  downscale:
+    enabled: true
+    prob: 0.5
+    scale:
+    - 0.08
+    - 0.4
+  enabled: true
+  fliplr: 0.5
+  flipud: 0.5
+  gaussian_blur:
+    enabled: true
+    prob: 0.15
+    sigma:
+    - 0.5
+    - 1.5
+  gaussian_noise:
+    enabled: true
+    mean: 0.0
+    prob: 0.15
+    std:
+    - 5
+    - 20
+  hsv_h: 0.05
+  hsv_s: 0.7
+  hsv_v: 0.4
+  jpeg_compression:
+    enabled: true
+    prob: 0.15
+    quality:
+    - 25
+    - 60
+  coarse_dropout:
+    enabled: true
+    prob: 0.4
+    num_holes: 8
+    min_height: 0.05
+    max_height: 0.15
+    min_width: 0.05
+    max_width: 0.15
+  copy_paste: 0.3
+  mixup: 0.2
+  mosaic: 1.0
+  motion_blur:
+    enabled: true
+    kernel_size:
+    - 3
+    - 9
+    prob: 0.2
+  scale: 0.6
+  translate: 0.2
+classifier:
+  T_0: 10
+  T_mult: 2
+  backbone: efficientnet_b0
+  backbone_unfreeze_epoch: 5
+  batch_size: 32
+  dropout_rate: 0.4
+  epochs: 200
+  eta_min: 1.0e-06
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+  img_size: 224
+  label_smoothing: 0.05
+  lr: 0.001
+  mixup_alpha: 0.4
+  mixup_prob: 0.1
+  pretrained: true
+  weight_decay: 0.05
+dataset:
+  class_names:
+  - knife
+  - pistol
+  - rifle
+  classifier_root: data/classifier_crops
+  num_classes: 3
+  root: data
+detector:
+  accumulate_grad_batches: 1
+  batch_size: 32
+  conf_threshold: 0.15
+  epochs: 100
+  img_size: 640
+  lr0: 0.01
+  lrf: 0.01
+  momentum: 0.937
+  pretrained_weights: logs/detector/best.pt
+  warmup_epochs: 3
+  weight_decay: 0.001
+  workers: 2
+fp_correction:
+  background_class_weight: 2.0
+  classifier_finetune_epochs: 100
+  classifier_finetune_lr: 0.0003
+  finetune_epochs: 100
+  finetune_lr: 0.0001
+  freeze_layers: 10
+  mine_conf_threshold: 0.2
+  negative_image_dir: data/negatives/visdrone
+  target_precision: 0.9
+  workers: 2
+geo:
+  camera_fov_h_deg: 84.0
+  camera_fov_v_deg: 54.0
+  enabled: true
+  gps_baud: 9600
+  gps_serial_port: /dev/ttyTHS0   # Jetson UART
+  pi_gps_serial_port: /dev/serial0  # Raspberry Pi 5 UART
+  mavlink_serial_port: null
+  mock_gps_alt_m: 50.0
+  mock_gps_lat: 28.6139
+  mock_gps_lon: 77.209
+  use_mock_gps: false
+hardware:
+  amp: true
+  device: cuda
+  ema: true
+  ema_decay: 0.9999
+logging:
+  patience: 15
+  save_dir: logs
+  save_period: 5
+project:
+  name: WeaponDetection
+  seed: 42
+  version: '2.0'
+student:
+  batch_size: 128
+  epochs: 200
+  img_size: 416
+  kd_alpha: 0.5
+  kd_alpha_warmup: 0.0
+  kd_feat_beta: 0.3
+  kd_feat_layers: 3
+  kd_temperature: 4.0
+  kd_warmup_epochs: 5
+  label_smoothing: 0.05
+  lr0: 0.005
+  lrf: 0.001
+  model: config/yolo11n_p2.yaml   # P2 shallow-fusion head for small-object detection
+  patience: 60
+  save_period: 10
+  teachers:
+  - runs/detect/logs/fp_correction/weights/best.pt
+  - logs/fp_correction/detector_ft_best.pt
+  - logs/detector/best.pt
+  workers: 6
+  # ── Small-object loss-guided augmentation ───────────────────────────────
+  # Monitors the EMA of small-object GT fraction per batch; injects
+  # small-object-rich images from the training set when it drops below
+  # small_object_target_frac. Pairs with the P2 shallow-fusion head.
+  small_object_aug: true
+  small_object_thresh: 0.04        # sqrt(w·h) < thresh → "small" object
+  small_object_target_frac: 0.15   # min desired fraction of small boxes/batch
+  small_object_max_rate: 0.40      # max fraction of batch slots to replace
+  small_object_ema_window: 100     # EMA smoothing window (batches)
+  # ── NWD loss for tiny objects (Wang et al., 2021) ────────────────────────
+  # Normalized Wasserstein Distance models boxes as 2-D Gaussians so gradient
+  # flows even when prediction and GT don't overlap — fixes zero-gradient for
+  # the 291 small-object annotations where CIoU/DFL produce no signal.
+  nwd_weight: 1.5                  # weight of NWD term added to total loss
+  nwd_small_thresh: 0.04           # same threshold as small_object_thresh
+temporal:
+  batch_size: 32
+  dropout: 0.3
+  epochs: 30
+  gamma: 0.5
+  hidden_size: 128
+  input_size: 8
+  lr: 0.001
+  max_frames_per_video: 300
+  num_layers: 2
+  step_size: 10
+  weight_decay: 0.0001
+  window_size: 16
+tracking:
+  enabled: true
+  frame_rate: 30
+  lost_track_buffer: 30
+  min_frames_to_confirm: 3
+  minimum_matching_threshold: 0.8
+  track_activation_threshold: 0.45
+trt:
+  calibration_images: 300
+  classifier_engine: logs/trt/classifier_int8.engine
+  detector_engine: logs/trt/detector_int8.engine
+  enabled: false
+  fp16_fallback: true
+  verify_after_export: true
+  workspace_gb: 4
+
+# Hailo-8L AI HAT (Raspberry Pi 5, 26 TOPS)
+hailo:
+  detector_hef: logs/hailo/detector.hef
+  classifier_hef: logs/hailo/classifier.hef
+  classifier_onnx: logs/hailo/classifier.onnx  # CPU fallback if HEF not compiled yet
+  hw_arch: hailo8l
